@@ -42,7 +42,7 @@ Q<-Rain %>% left_join(Q,by=c("Date"="Time")) %>%
 #setup RR model
 #based on https://cran.rstudio.com/web/packages/airGR/vignettes/V01_get_started.html
 
-ErrorC<-ErrorCrit_NSE
+ErrorC<-ErrorCrit_KGE
 RunModel<-RunModel_GR6J
 
 startDate="1978-01-01"
@@ -59,8 +59,8 @@ RunOptions <- CreateRunOptions(FUN_MOD = RunModel,
                                IniStates = NULL, IniResLevels = NULL, IndPeriod_WarmUp = NULL)
 
 InputsCrit <- CreateInputsCrit(FUN_CRIT = ErrorC, InputsModel = InputsModel, 
-                               RunOptions = RunOptions, VarObs = "Q", Obs = as.numeric(Q$Value)[Ind_Run])#,
-                             #  transfo="sqrt")
+                               RunOptions = RunOptions, VarObs = "Q", Obs = as.numeric(Q$Value)[Ind_Run],
+                               transfo="sqrt")
 
 CalibOptions <- CreateCalibOptions(FUN_MOD = RunModel, FUN_CALIB = Calibration_Michel)
 
@@ -76,8 +76,10 @@ plot(OutputsModel, Qobs = Q$Value[Ind_Run])
 OutputsCrit <- ErrorC(InputsCrit = InputsCrit, OutputsModel = OutputsModel)
 
 results<-list()
-results[['calib_NSE']] <- OutputsCrit
+results[['calib_KGE']] <- OutputsCrit
+results[['calib_NSE']] <- ErrorCrit_NSE(InputsCrit = InputsCrit, OutputsModel = OutputsModel)
 results[['calib_para']] <- Param
+results[['calib_model']]<- OutputsModel
 
 #validation period
 
@@ -89,15 +91,17 @@ RunOptions <- CreateRunOptions(FUN_MOD = RunModel,
                                IniStates = NULL, IniResLevels = NULL, IndPeriod_WarmUp = NULL)
 
 InputsCrit <- CreateInputsCrit(FUN_CRIT = ErrorC, InputsModel = InputsModel, 
-                               RunOptions = RunOptions, VarObs = "Q", Obs = as.numeric(Q$Value)[Ind_Run])#,
-                               #transfo="sqrt")
+                               RunOptions = RunOptions, VarObs = "Q", Obs = as.numeric(Q$Value)[Ind_Run],
+                               transfo="sqrt")
 
 OutputsModel <- RunModel(InputsModel = InputsModel, RunOptions = RunOptions, Param = Param)
 plot(OutputsModel, Qobs = Q$Value[Ind_Run])
 
 OutputsCrit <- ErrorC(InputsCrit = InputsCrit, OutputsModel = OutputsModel)
 
-results[['valid_NSE']] <- OutputsCrit
+results[['valid_KGE']] <- OutputsCrit
+results[['valid_NSE']] <- ErrorCrit_NSE(InputsCrit = InputsCrit, OutputsModel = OutputsModel)
+results[['valid_model']]<- OutputsModel
 
 #comparison period
 Ind_Run <- seq(which(format(Rain$Date, format = "%Y-%m-%d") ==  "1900-01-01"), 

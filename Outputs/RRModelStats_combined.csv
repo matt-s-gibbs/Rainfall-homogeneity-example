@@ -1,0 +1,7 @@
+Period,Rainfall Source,KGE,NSE,mean P (mm/yr),mean Q (mm/yr)
+calib,Original,0.89,0.79,562,45.3
+,Corrected,0.9,0.81,595,45.7
+valid,Original,0.44,0.61,521,26.9
+,Corrected,0.45,0.64,554,27.3
+Application,Original,'-,,612,60.2
+,Corrected,,,615,49.2

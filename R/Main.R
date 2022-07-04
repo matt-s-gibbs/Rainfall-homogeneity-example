@@ -3,16 +3,17 @@ library(tidyverse)
 library(zoo)
 library(hydroTSM)
 library(cowplot)
+library(lubridate)
 
 source("R/CalibRRModel_Penrice.R")
 
 #from map Penrice
 stations<-c("23313","23302","23300","23317","23725","23705") #23705 is outside catchment, but similar elevation and good data
 
-#Download SILO and streamflow data
-SILODownload(stations,path="SILO",startdate="18890101",enddate="20210101")
+#Uncomment to download SILO and streamflow data
+#SILODownload(stations,path="SILO",startdate="18890101",enddate="20210101")
 ##force 9am time to align with rainfall
-AQWPDownload("A5050517","Discharge.Best Available","ML/d","Discharge/A5050517.json",StartTime="1977-06-23 09:00")
+#AQWPDownload("A5050517","Discharge.Best Available","ML/d","Discharge/A5050517.json",StartTime="1977-06-23 09:00")
 
 X<-SILOLoad(stations,"SILO",startdate=as.Date("1891-01-01"),enddate=as.Date("2020-12-31"))
 
@@ -53,12 +54,16 @@ OutputsModelAfter<-Calibrate_Model(X)
 #Output comparison of models
 
 #NSE
-stats<-array(0,c(2,2))
-stats[1,1]<-OutputsModelBefore[['calib_NSE']]$CritValue
-stats[1,2]<-OutputsModelBefore[['valid_NSE']]$CritValue
-stats[2,1]<-OutputsModelAfter[['calib_NSE']]$CritValue
-stats[2,2]<-OutputsModelAfter[['valid_NSE']]$CritValue
-colnames(stats)<-c("Calibration","Validation")
+stats<-array(0,c(2,4))
+stats[1,1]<-OutputsModelBefore[['calib_KGE']]$CritValue
+stats[1,3]<-OutputsModelBefore[['valid_KGE']]$CritValue
+stats[2,1]<-OutputsModelAfter[['calib_KGE']]$CritValue
+stats[2,3]<-OutputsModelAfter[['valid_KGE']]$CritValue
+stats[1,2]<-OutputsModelBefore[['calib_NSE']]$CritValue
+stats[1,4]<-OutputsModelBefore[['valid_NSE']]$CritValue
+stats[2,2]<-OutputsModelAfter[['calib_NSE']]$CritValue
+stats[2,4]<-OutputsModelAfter[['valid_NSE']]$CritValue
+colnames(stats)<-c("Calib.KGE","Calib.NSE","Valid.KGE","Valid.NSE")
 rownames(stats)<-c("Original","Corrected")
 write.csv(round(stats,2),"Outputs/RRModelStats.csv")
 
@@ -114,3 +119,28 @@ ggsave("Outputs/fdc.tiff",width=19,height=10,unit="cm",compression = "lzw",dpi=1
 X1 %>% filter(period=="Annual") %>% group_by(model) %>% summarise(flow=mean(flow))
 #no flow days
 X1 %>% filter(period=="Daily") %>% group_by(model) %>% summarise(flow=sum(flow>0.01)/length(flow)*100)
+
+#summary of P and Q in the different periods
+ModelMeans<-function(model,name)
+{
+  length<-time_length(max(model$DatesR)-min(model$DatesR)+1,"years")
+  P<-sum(model$Precip)/length
+  Q<-sum(model$Qsim)/length
+  return(tibble(name=name,P=P,Q=Q))
+}
+
+means<-ModelMeans(OutputsModelBefore[['calib_model']],"calib-orig") %>% 
+  bind_rows(ModelMeans(OutputsModelAfter[['calib_model']],"calib-corrected")) %>% 
+  bind_rows(ModelMeans(OutputsModelBefore[['valid_model']],"valid-orig")) %>% 
+  bind_rows(ModelMeans(OutputsModelAfter[['valid_model']],"valid-corrected")) %>%
+  bind_rows(ModelMeans(OutputsModelBefore[['application']],"application-orig")) %>% 
+  bind_rows(ModelMeans(OutputsModelAfter[['application']],"application-corrected"))
+write.csv(means,"Outputs/MeanQ.csv")
+  
+Q<-AQWPLoad("Discharge/A5050517.json")
+Qa<-Q %>%  mutate(year=year(Time)) %>% 
+  group_by(year) %>% 
+  summarise(Q=sum(Value)/117.1291) #ML/yr to mm/yr
+
+Obs<-c(mean(Qa %>% filter(year>=1978 & year<=2004) %>% pull(Q),na.rm=TRUE),
+       mean(Qa %>% filter(year>=2005 & year<=2020) %>% pull(Q),na.rm=TRUE))
